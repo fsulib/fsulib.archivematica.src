@@ -14,6 +14,7 @@
 - name: "Remove SS DB (mysql)"
   mysql_db:
     name: "{{ archivematica_src_ss_db_name }}"
+    login_host: "{{ archivematica_src_am_db_host }}"
     state: absent
   when: 
     - "archivematica_src_reset_ss_db|bool"
@@ -22,6 +23,7 @@
 - name: "Create SS DB (mysql)"
   mysql_db:
     name: "{{ archivematica_src_ss_db_name }}"
+    login_host: "{{ archivematica_src_am_db_host }}"
     state: present
   when:
     - "archivematica_src_reset_ss_db|bool"

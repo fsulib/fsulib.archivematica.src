@@ -11,12 +11,14 @@
 - name: "Drop MCP database"
   mysql_db:
     name: "{{ archivematica_src_am_db_name }}"
+    login_host: "{{ archivematica_src_am_db_host }}"
     state: "absent"
   when: "archivematica_src_reset_mcpdb|bool or archivematica_src_reset_am_all|bool"
 
 - name: "Create MySQL database"
   mysql_db:
     name: "{{ archivematica_src_am_db_name }}"
+    login_host: "{{ archivematica_src_am_db_host }}"
     state: "present"
     encoding: "utf8"
     collation: "utf8_unicode_ci"
