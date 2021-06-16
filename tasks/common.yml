@@ -31,11 +31,12 @@
 
   - name: "Download get-pip.py"
     get_url:
-      url: "https://bootstrap.pypa.io/get-pip.py"
+      url: "https://bootstrap.pypa.io/pip/2.7/get-pip.py"
+      force: "yes"
       dest: "/root/get-pip.py"
 
   - name: "Install pip with get-pip.py"
-    command: "python get-pip.py"
+    command: "python get-pip.py pip=={{ archivematica_src_pip_version }} setuptools=={{ archivematica_src_setuptools_version }} wheel=={{ archivematica_src_wheel_version }}"
     args:
       chdir: "/root/"
 
@@ -76,7 +77,7 @@
       name: "{{ item.key }}"
       description: "{{ item.key }}"
       baseurl: "{{ item.value.baseurl }}"
-      gpgkey: "{{ item.value.gpgkey|default('https://packages.archivematica.org/1.10.x/key.asc') }}"
+      gpgkey: "{{ item.value.gpgkey|default('https://packages.archivematica.org/1.12.x/key.asc') }}"
       gpgcheck: "{{ item.value.gpgcheck|default('1') }}"
     loop: "{{ lookup('dict',archivematica_src_rpm_repositories) }}"
 

@@ -5,6 +5,14 @@
 #   0- Clone source repo
 ###########################################################
 
+- name: "Delete pychache, pyc and pyo files/dir"
+  command: "{{ item }}"
+  args:
+    removes: "{{ archivematica_src_dir }}/archivematica-storage-service"
+  loop:
+    - 'find {{ archivematica_src_dir }}/archivematica-storage-service -type f -name "*.py[co]" -delete'
+    - 'find {{ archivematica_src_dir }}/archivematica-storage-service -type d -name "__pycache__" -delete'
+
 - name: "Checkout archivematica-storage-service code"
   git:
     repo: "{{ archivematica_src_ss_repo }}"
@@ -12,6 +20,7 @@
     version: "{{ archivematica_src_ss_version }}"
     force: "yes"
     accept_hostkey: "yes"
+  become_flags: "-E"
   tags: "amsrc-ss-clone"
 
 # For some reason, some dirs in the cloned source code
@@ -61,14 +70,22 @@
     state: absent
     path: "/usr/share/python/archivematica-storage-service/"
 
+- name: "Delete SS virtualenv"
+  file:
+    path: "{{ archivematica_src_ss_virtualenv }}"
+    state: "absent"
+
 # a separate task to create the virtualenv before install requirements
 # is required to avoid errors
 - name: "Create virtualenv for archivematica-storage-service"
   pip:
-    name: "pip"
+    name:
+      - "pip=={{ archivematica_src_pip_version }}"
+      - "setuptools=={{ archivematica_src_setuptools_version }}"
+      - "wheel=={{ archivematica_src_wheel_version }}"
     chdir: "{{ archivematica_src_dir }}/archivematica-storage-service"
     virtualenv: "{{ archivematica_src_ss_virtualenv }}"
-    state: "latest"
+    state: "present"
   tags: "amsrc-ss-pydep"
 
 ## these tasks added in PR #103 are breaking in CentOS
@@ -97,7 +114,6 @@
     requirements: "{{ item }}"
     virtualenv: "{{ archivematica_src_ss_virtualenv }}"
     extra_args: "{{ ss_pip_install_extra_args }}"
-    state: "latest"
   tags: "amsrc-ss-pydep"
   when: "is_prod"
   with_items:
@@ -109,7 +125,6 @@
     requirements: "{{ item }}"
     virtualenv: "{{ archivematica_src_ss_virtualenv }}"
     extra_args: "{{ ss_pip_install_extra_args }}"
-    state: "latest"
   tags: "amsrc-ss-pydep"
   when: "is_dev"
   with_items:

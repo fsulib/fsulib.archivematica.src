@@ -31,6 +31,20 @@
       defaults: "{{ _archivematica_src_ss_environment }}"
   tags: "always"
 
+# Append SS_GUNICORN_WORKERS=3 only when SS_GUNICORN_WORKERS
+# is not defined in dictionary and MySQL database
+- name: "Append default SS_GUNICORN_WORKERS when using MySQL"
+  set_fact:
+    "{{ item.name }}": "{{ item.dict|combine({item.key: 3}) }}"
+  with_items:
+    - name: "archivematica_src_ss_environment"
+      dict: "{{ archivematica_src_ss_environment }}"
+      key: "SS_GUNICORN_WORKERS"
+  when:
+    - archivematica_src_ss_environment['SS_DB_URL'] is defined
+    - archivematica_src_ss_environment['SS_GUNICORN_WORKERS'] is not defined
+  tags: "always"
+
 - include: "envs-patch-backward-compatibility.yml"
   tags: "always"
 
@@ -115,7 +129,7 @@
   when:
     - archivematica_src_install_ss == "rpm"
 
-- name: "Configure storage service"
+- name: "Complete storage service deployment"
   block:
   - include: "ss-db.yml"
     tags:
@@ -129,7 +143,7 @@
     tags:
       - "amsrc-ss"
       - "amsrc-ss-websrv"
-  when: "archivematica_src_configure_ss|bool"
+  when: "archivematica_src_install_ss|bool"
 
 
 #
@@ -180,7 +194,7 @@
   when:
     - archivematica_src_install_am == "rpm"
 
-- name: "Configure AM environment"
+- name: "Complete AM deployment"
   block:
   - include: "pipeline-dbconf.yml"
     tags:
@@ -202,7 +216,7 @@
       - "amsrc-pipeline"
       - "amsrc-pipeline-websrv"
 
-  when: "archivematica_src_configure_dashboard|bool"
+  when: "archivematica_src_install_am|bool"
 
 
 #
