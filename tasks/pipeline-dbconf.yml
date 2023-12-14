@@ -13,7 +13,6 @@
     name: "{{ archivematica_src_am_db_name }}"
     login_host: "{{ archivematica_src_am_db_host }}"
     state: "absent"
-    login_unix_socket: "{% if ansible_os_family in ['Rocky','RedHat'] %}/var/lib/mysql/mysql.sock{% else %}/var/run/mysqld/mysqld.sock{% endif %}"
   when: "archivematica_src_reset_mcpdb|bool or archivematica_src_reset_am_all|bool"
 
 - name: "Create MySQL database"
@@ -23,7 +22,6 @@
     state: "present"
     collation: "{{ archivematica_src_am_db_collation }}"
     encoding: "{{ archivematica_src_am_db_encoding }}"
-    login_unix_socket: "{% if ansible_os_family in ['Rocky','RedHat'] %}/var/lib/mysql/mysql.sock{% else %}/var/run/mysqld/mysqld.sock{% endif %}"
   when: "archivematica_src_reset_mcpdb|bool or archivematica_src_reset_am_all|bool"
 
 
