@@ -1,22 +1,16 @@
 - name: "Install required deb packages "
-  apt:
-    name:
-      - "sqlite3"
-      - "moreutils"
-      - "mailutils"
-    state: present
-  when:
-    - ansible_os_family == "Debian"
+  package:
+    name: "{{ archivematica_src_am_fixity_deps }}"
+    state: "present"
 
-- name: "Install required rpm packages"
-  yum:
-    name:
-      - "sqlite"
-      - "moreutils"
-      - "mailx"
-    state: present
+- name: "Get git config global safe directories dir"
+  shell: "git config --global --get-all safe.directory || echo ''"
+  register: "__git_config_global_safe_dir"
+
+- name: "Set Fixity source directory as git safe dir"
+  command: "git config --global --add safe.directory {{ archivematica_src_dir }}/fixity"
   when:
-    - ansible_os_family == "RedHat"
+    - archivematica_src_dir + '/fixity' not in __git_config_global_safe_dir.stdout_lines
 
 - name: "Download code"
   git:
@@ -25,11 +19,22 @@
     version: "{{ archivematica_src_fixity_version }}"
     force: "yes"
 
+- name: "Ensure archivematica user can create virtualenv"
+  file:
+    path: "{{ archivematica_src_fixity_virtualenv | dirname }}"
+    owner: "archivematica"
+    group: "archivematica"
+    state: "directory"
+
 - name: "Install pip dependencies in virtualenv"
+  become: "yes"
+  become_user: "archivematica"
   pip:
     chdir: "{{ archivematica_src_dir }}/fixity"
     requirements: "requirements.txt"
     virtualenv: "{{ archivematica_src_fixity_virtualenv }}"
+    virtualenv_command: "{{ archivematica_src_virtualenv }}"
+    virtualenv_python: "{{ archivematica_src_virtualenv_python }}"
     state: "latest"
 
 - name: "Run setup.py"
@@ -60,7 +65,6 @@
      mode: 0750
      owner: "archivematica"
      group: "archivematica"
-
 
 - name: "Create fixity script"
   template:

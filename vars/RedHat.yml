@@ -1,9 +1,0 @@
----
-systemd_environment_path: "/etc/sysconfig"
-ansible_deps:
-  - "epel-release"
-  - "git"
-  - "MySQL-python" # Required for mysql_db module
-  - "sqlite"       # Required for am-configure and fixity
-  - "p7zip-plugins" 
-ca_custom_bundle: "/etc/pki/tls/certs/ca-bundle.crt"

@@ -20,7 +20,7 @@
     version: "{{ archivematica_src_ss_version }}"
     force: "yes"
     accept_hostkey: "yes"
-  become_flags: "-E"
+  become_flags: "-ES"
   tags: "amsrc-ss-clone"
 
 # For some reason, some dirs in the cloned source code
@@ -50,86 +50,53 @@
 #   2- Python dependencies (pip packages)
 ###########################################################
 
-- stat:
-    path: "{{ archivematica_src_dir }}/archivematica-storage-service/lib"
-  register: "ss_lib_dir_check"
+- name: "Destroy virtualenv if it's using a different python version"
+  block:
+    - name: "Capture current Python version"
+      command: |-
+        {{ archivematica_src_ss_virtualenv }}/bin/python -c
+          'import sys; print("python"+str(sys.version_info[0])+"."+str(sys.version_info[1]))'
+      failed_when: false
+      changed_when: false
+      check_mode: false
+      register: "pyver_check"
+    - name: "Destroy Python virtualenv when it's using a different version"
+      file:
+        path: "{{ archivematica_src_ss_virtualenv }}"
+        state: "absent"
+      when: "pyver_check.rc == 0 and pyver_check.stdout != archivematica_src_virtualenv_python"
   tags: "amsrc-ss-pydep"
 
-- set_fact:
-    ss_pip_install_extra_args: ""
-  tags: "amsrc-ss-pydep"
-
-- set_fact:
-    ss_pip_install_extra_args: "--find-links lib"
-  when: "ss_lib_dir_check.stat.isdir is defined and ss_lib_dir_check.stat.isdir"
-  tags: "amsrc-ss-pydep"
-
-# this task is needed to avoid problems when upgrading python package
-- name: "Remove old SS virtualenv default dir"
+- name: "Ensure archivematica user can create virtualenv"
   file:
-    state: absent
-    path: "/usr/share/python/archivematica-storage-service/"
+    path: "{{ archivematica_src_ss_virtualenv | dirname }}"
+    owner: "archivematica"
+    group: "archivematica"
+    state: "directory"
+  tags: "amsrc-ss-pydep"
 
-- name: "Delete SS virtualenv"
-  file:
-    path: "{{ archivematica_src_ss_virtualenv }}"
-    state: "absent"
-
-# a separate task to create the virtualenv before install requirements
-# is required to avoid errors
-- name: "Create virtualenv for archivematica-storage-service"
+- name: "Create virtualenv and install pip-tools"
+  become: "yes"
+  become_user: "archivematica"
   pip:
-    name:
+    virtualenv: "{{ archivematica_src_ss_virtualenv }}"
+    virtualenv_command: "{{ archivematica_src_virtualenv }}"
+    virtualenv_python: "{{ archivematica_src_virtualenv_python }}"
+    name: 
       - "pip=={{ archivematica_src_pip_version }}"
-      - "setuptools=={{ archivematica_src_setuptools_version }}"
-      - "wheel=={{ archivematica_src_wheel_version }}"
-    chdir: "{{ archivematica_src_dir }}/archivematica-storage-service"
-    virtualenv: "{{ archivematica_src_ss_virtualenv }}"
-    state: "present"
+      - "pip-tools=={{ archivematica_src_pip_tools_version }}"
   tags: "amsrc-ss-pydep"
 
-## these tasks added in PR #103 are breaking in CentOS
-## (error in pip install after removing setuptools)
-## will remove for now
-
-# - name: "Update setuptools in virtualenv for archivematica-storage-service"
-#   pip:
-#     name: "setuptools"
-#     chdir: "{{ archivematica_src_dir }}/archivematica-storage-service"
-#     virtualenv: "{{ archivematica_src_ss_virtualenv }}"
-#     state: "absent"
-#   tags: "amsrc-ss-pydep"
-
-# - name: "Update setuptools in virtualenv for archivematica-storage-service"
-#   pip:
-#     name: "setuptools"
-#     chdir: "{{ archivematica_src_dir }}/archivematica-storage-service"
-#     virtualenv: "{{ archivematica_src_ss_virtualenv }}"
-#     state: "latest"
-#   tags: "amsrc-ss-pydep"
-
-- name: "Install pip requirements for production"
-  pip:
+- name: "Synchronize requirements"
+  become: "yes"
+  become_user: "archivematica"
+  command: "{{ archivematica_src_ss_virtualenv }}/bin/pip-sync {{ 'requirements-dev.txt' if is_dev else 'requirements.txt' }}"
+  args:
     chdir: "{{ archivematica_src_dir }}/archivematica-storage-service"
-    requirements: "{{ item }}"
-    virtualenv: "{{ archivematica_src_ss_virtualenv }}"
-    extra_args: "{{ ss_pip_install_extra_args }}"
+  environment:
+    LC_ALL: "en_US.utf8"
+    LANG: "en_US.utf8"
   tags: "amsrc-ss-pydep"
-  when: "is_prod"
-  with_items:
-    - "requirements/production.txt"
-
-- name: "Install pip requirements for development"
-  pip:
-    chdir: "{{ archivematica_src_dir }}/archivematica-storage-service"
-    requirements: "{{ item }}"
-    virtualenv: "{{ archivematica_src_ss_virtualenv }}"
-    extra_args: "{{ ss_pip_install_extra_args }}"
-  tags: "amsrc-ss-pydep"
-  when: "is_dev"
-  with_items:
-    - "requirements/local.txt"
-    - "requirements/test.txt"
 
 ###########################################################
 #   3- OS configuration (user/directory/file creation/permissions/ownership)
@@ -204,6 +171,14 @@
     virtualenv: "{{ archivematica_src_ss_virtualenv }}"
   environment: "{{ archivematica_src_ss_environment }}"
   tags: ["amsrc-ss-code", "amsrc-ss-code-collectstatic"]
+
+- name: "Run SS django compilemessages"
+  django_manage:
+    command: "compilemessages"
+    app_path: "{{ archivematica_src_ss_app }}"
+    virtualenv: "{{ archivematica_src_ss_virtualenv }}"
+  environment: "{{ archivematica_src_ss_environment }}"
+  tags: ["amsrc-ss-code", "amsrc-ss-code-compilemessages"]
 
 - name: "Copy gunicorn configuration file"
   copy:

@@ -1,56 +1,45 @@
 ---
-# this task is needed to avoid problems when upgrading python package
-- name: "virtualenv | Remove old virtualenv default dirs"
+
+- name: "Destroy virtualenv when it's using a different version"
+  block:
+    - name: "Capture current Python version"
+      command: |-
+        {{ archivematica_src_am_virtualenv }}/bin/python -c
+          'import sys; print("python"+str(sys.version_info[0])+"."+str(sys.version_info[1]))'
+      failed_when: false
+      changed_when: false
+      check_mode: false
+      register: "pyver_check"
+    - name: "Destroy Python virtualenv when it's using a different version"
+      file:
+        path: "{{ archivematica_src_am_virtualenv }}"
+        state: "absent"
+      when: "pyver_check.rc == 0 and pyver_check.stdout != archivematica_src_virtualenv_python"
+
+- name: "Ensure archivematica user can create virtualenv"
   file:
-    state: absent
-    path: "/usr/share/python/{{ item }}/"
-  with_items:
-    - "archivematica-dashboard"
-    - "archivematica-mcp-client"
-    - "archivematica-mcp-server"
+    path: "{{ archivematica_src_am_virtualenv | dirname }}"
+    owner: "archivematica"
+    group: "archivematica"
+    state: "directory"
 
-- name: "virtualenv | Set `virtualenvs` variable"
-  set_fact:
-    virtualenvs:
-      - name: "Archivematica MCPServer"
-        path: "{{ archivematica_src_am_mcpserver_virtualenv }}"
-        requirements_dir:
-          - "{{ archivematica_src_dir }}/archivematica/src/archivematicaCommon"
-          - "{{ archivematica_src_dir }}/archivematica/src/MCPServer"
-          - "{{ archivematica_src_dir }}/archivematica/src/dashboard/src"
-      - name: "Archivematica MCPClient"
-        path: "{{ archivematica_src_am_mcpclient_virtualenv }}"
-        requirements_dir:
-          - "{{ archivematica_src_dir }}/archivematica/src/archivematicaCommon"
-          - "{{ archivematica_src_dir }}/archivematica/src/MCPClient"
-          - "{{ archivematica_src_dir }}/archivematica/src/dashboard/src"
-      - name: "Archivematica Dashboard"
-        path: "{{ archivematica_src_am_dashboard_virtualenv }}"
-        requirements_dir:
-          - "{{ archivematica_src_dir }}/archivematica/src/archivematicaCommon"
-          - "{{ archivematica_src_dir }}/archivematica/src/dashboard/src"
-
-- name: "virtualenv | Delete environment"
-  file:
-    path: "{{ item.path }}"
-    state: "absent"
-  with_items: "{{ virtualenvs }}"
-
-- name: "virtualenv | Create environment and install a recent version of pip"
+- name: "Create virtualenv and install pip-tools"
+  become: "yes"
+  become_user: "archivematica"
   pip:
-    name:
+    virtualenv: "{{ archivematica_src_am_virtualenv }}"
+    virtualenv_command: "{{ archivematica_src_virtualenv }}"
+    virtualenv_python: "{{ archivematica_src_virtualenv_python }}"
+    name: 
       - "pip=={{ archivematica_src_pip_version }}"
-      - "setuptools=={{ archivematica_src_setuptools_version }}"
-      - "wheel=={{ archivematica_src_wheel_version }}"
-    virtualenv: "{{ item.path }}"
-    state: "present"
-  with_items: "{{ virtualenvs }}"
+      - "pip-tools=={{ archivematica_src_pip_tools_version }}"
 
-- name: "virtualenv | Install requirements"
-  pip:
-    chdir: "{{ item.1 }}"
-    virtualenv: "{{ item.0.path }}"
-    requirements: "{{ 'requirements/test.txt' if is_dev else 'requirements.txt' }}"
-  with_subelements:
-    - "{{ virtualenvs }}"
-    - "requirements_dir"
+- name: "Synchronize requirements"
+  become: "yes"
+  become_user: "archivematica"
+  command: "{{ archivematica_src_am_virtualenv }}/bin/pip-sync {{ 'requirements-dev.txt' if is_dev else 'requirements.txt' }}"
+  args:
+    chdir: "{{ archivematica_src_dir }}/archivematica"
+  environment:
+    LC_ALL: "en_US.utf8"
+    LANG: "en_US.utf8"
