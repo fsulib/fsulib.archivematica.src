@@ -51,7 +51,7 @@
       # Needed by fits, ffmpeg, mediainfo and mediaconch
       command: "dnf config-manager --set-enabled powertools"
       when:
-        - ansible_distribution not in ['Redhat']
+        - ansible_distribution not in ['RedHat']
         - ansible_os_family == 'RedHat'
         - ansible_distribution_major_version|int == 8
 
@@ -96,7 +96,7 @@
 # But yum or apt modules doesn't allow loops (deprecated) so the trick is using the
 # install-packages.yml task file
 
-- include_tasks: "install-packages.yml"
+- include_tasks: "install-packages.yml"  # We need to use include_tasks and not import_tasks because it contains dynamic data in loop
   vars:
     packages: "{{ item.packages }}"
     name: "{{ item.name }}"
