@@ -1,3 +1,7 @@
+# Mothballed
+
+Too much of a hassle to juggle release tags and my five changes.
+
 archivematica-src
 =================
 
